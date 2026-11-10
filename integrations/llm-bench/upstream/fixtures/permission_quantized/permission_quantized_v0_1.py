@@ -22,6 +22,9 @@ Two caliber locks in this version:
     bit outside 0o070 is PERM_NON_GROUP_DELTA (e.g. 0600 -> 0700), and a
     requested bit that the host drops is PERM_REQUESTED_BITS_LOST.
 
+Probe path: quantization is path-scoped, so each receipt declares target_path and
+observed_path; a mismatch (or half a declaration) is UNKNOWN, never PASS.
+
 Rows are four columns: case_id | shape | expected verdict | credit.
 analyze_only; stdlib only.
 Credit: Iris (EigenFlux PM, hmdfs real-host measurement); DeepSeek_Harness_Ali
@@ -34,6 +37,7 @@ import sys
 from typing import Any
 
 GROUP_MASK = 0o070
+HOST_GROUP_ADD = 0o060  # measured hmdfs behavior: owner bits plus group rw
 WORLD_WRITE = 0o002
 WORLD_READ = 0o004
 WORLD_EXEC = 0o001
@@ -63,6 +67,19 @@ def _world_verdict(observed: int) -> str | None:
 def judge(receipt: dict[str, Any]) -> dict[str, Any]:
     if receipt.get("kind") != "perm_mode":
         return {"judge": "FAIL", "reason_code": "UNCLASSIFIED", "detail": {"kind": receipt.get("kind")}}
+
+    target_path = receipt.get("target_path")
+    observed_path = receipt.get("observed_path")
+    if (target_path is None) != (observed_path is None):
+        # Half a path declaration is not evidence of what directory was probed.
+        return {"judge": "UNKNOWN", "reason_code": "PERM_PROBE_PATH_UNDECLARED"}
+    if target_path is not None and observed_path != target_path:
+        # Quantization is path-scoped: a probe in another directory proves nothing.
+        return {
+            "judge": "UNKNOWN",
+            "reason_code": "PERM_PROBE_PATH_MISMATCH",
+            "detail": {"target_path": target_path, "observed_path": observed_path},
+        }
 
     policy = receipt.get("policy")
     if policy not in ("tolerate_group", "enforce_exact"):
@@ -112,6 +129,13 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
                 "reason_code": "PERM_POLICY_UNSATISFIABLE",
                 "detail": {"requested": oct(requested), "observed": oct(observed)},
             }
+        if requested & ~observed:
+            # A requested bit was dropped: the declared access is not there.
+            return {
+                "judge": "FAIL",
+                "reason_code": "PERM_REQUESTED_BITS_LOST",
+                "detail": {"requested": oct(requested), "observed": oct(observed)},
+            }
         diff = observed ^ requested
         if diff & ~GROUP_MASK:
             # Tolerance is bound to group bits only; owner/other drift is not tolerated.
@@ -120,12 +144,13 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
                 "reason_code": "PERM_NON_GROUP_DELTA",
                 "detail": {"requested": oct(requested), "observed": oct(observed), "diff": oct(diff)},
             }
-        if requested & ~observed:
-            # A requested bit was dropped: the declared access is not there.
+        if observed != (requested | HOST_GROUP_ADD):
+            # Group tolerance must match the measured host pattern, not any group gain
+            # (e.g. 0600 -> 0620 adds group write only and is not the host pattern).
             return {
                 "judge": "FAIL",
-                "reason_code": "PERM_REQUESTED_BITS_LOST",
-                "detail": {"requested": oct(requested), "observed": oct(observed)},
+                "reason_code": "PERM_TOLERANCE_SHAPE_MISMATCH",
+                "detail": {"requested": oct(requested), "observed": oct(observed), "host_add": oct(HOST_GROUP_ADD)},
             }
         if not receipt.get("delta_recorded"):
             return {
@@ -149,6 +174,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM: hmdfs)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0660",
@@ -164,6 +191,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM); DeepSeek_Harness_Ali (WSL /mnt/c)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0664",
@@ -179,6 +208,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM: measured 0600->0660)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0660",
@@ -194,6 +225,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM: control on a permission-honoring path)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0600",
@@ -206,7 +239,9 @@ FIXTURES = [
         "case_id": "PQ-05-UNOBSERVED",
         "shape": "stat unavailable — no observation, no verdict",
         "credit": "Iris (EigenFlux PM)",
-        "receipt": {"kind": "perm_mode", "rc": 0, "requested": "0600", "observed": None, "checker": "stat", "policy": "tolerate_group"},
+        "receipt": {"kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred", "rc": 0, "requested": "0600", "observed": None, "checker": "stat", "policy": "tolerate_group"},
         "expect": "PERM_UNOBSERVED",
     },
     {
@@ -215,6 +250,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed_at_ingest": "0600",
@@ -231,6 +268,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM: hmdfs cannot satisfy enforce_exact)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0660",
@@ -245,6 +284,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM: measured dir 0700->0771); Grok Bot (world --x vs --r caliber)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0700",
             "observed": "0771",
@@ -260,6 +301,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 1,
             "requested": "0600",
             "observed": "0660",
@@ -273,7 +316,9 @@ FIXTURES = [
         "case_id": "PQ-10-POLICY-UNDECLARED",
         "shape": "no declared tolerance policy — cannot decide, must not pass",
         "credit": "Iris (EigenFlux PM)",
-        "receipt": {"kind": "perm_mode", "rc": 0, "requested": "0600", "observed": "0660", "checker": "stat"},
+        "receipt": {"kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred", "rc": 0, "requested": "0600", "observed": "0660", "checker": "stat"},
         "expect": "PERM_POLICY_UNDECLARED",
     },
     {
@@ -282,6 +327,8 @@ FIXTURES = [
         "credit": "Iris (EigenFlux PM)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0660",
@@ -294,14 +341,18 @@ FIXTURES = [
         "case_id": "PQ-12-CHECKER-UNDECLARED",
         "shape": "neither rc_only nor stat declared — checker unknown",
         "credit": "Iris (EigenFlux PM)",
-        "receipt": {"kind": "perm_mode", "rc": 0, "requested": "0600", "observed": "0660", "checker": None, "policy": "tolerate_group"},
+        "receipt": {"kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred", "rc": 0, "requested": "0600", "observed": "0660", "checker": None, "policy": "tolerate_group"},
         "expect": "PERM_CHECKER_UNDECLARED",
     },
     {
         "case_id": "PQ-13-CHMOD-FAILED-VISIBLE",
         "shape": "chmod returned non-zero and the writer stopped — visible failure",
         "credit": "Iris (EigenFlux PM)",
-        "receipt": {"kind": "perm_mode", "rc": 1, "requested": "0600", "observed": "0660", "checker": "stat", "policy": "tolerate_group"},
+        "receipt": {"kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred", "rc": 1, "requested": "0600", "observed": "0660", "checker": "stat", "policy": "tolerate_group"},
         "expect": "PERM_CHMOD_FAILED_VISIBLE",
     },
     {
@@ -310,6 +361,8 @@ FIXTURES = [
         "credit": "Grok Bot (co-review: 0775 vs 0771 caliber)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0700",
             "observed": "0775",
@@ -325,6 +378,8 @@ FIXTURES = [
         "credit": "Grok Bot (co-review: GROUP_TOLERANCE_MUST_BIND_ONLY_GROUP_BITS)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0700",
@@ -340,6 +395,8 @@ FIXTURES = [
         "credit": "Grok Bot (co-review: tolerance must not hide a lost bit)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0640",
             "observed": "0600",
@@ -355,6 +412,8 @@ FIXTURES = [
         "credit": "Grok Bot (co-review: world w symmetry)",
         "receipt": {
             "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
             "rc": 0,
             "requested": "0600",
             "observed": "0602",
@@ -363,6 +422,58 @@ FIXTURES = [
             "delta_recorded": True,
         },
         "expect": "PERM_WORLD_WRITABLE",
+    },
+    {
+        "case_id": "PQ-18-TOLERANCE-SHAPE",
+        "shape": "0600 observed as 0620 — group write only, not the measured host pattern (grp rw)",
+        "credit": "Grok Bot (co-review: group tolerance must match the host pattern)",
+        "receipt": {
+            "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/var/lib/agent/cred",
+            "rc": 0,
+            "requested": "0600",
+            "observed": "0620",
+            "checker": "stat",
+            "policy": "tolerate_group",
+            "delta_recorded": True,
+        },
+        "expect": "PERM_TOLERANCE_SHAPE_MISMATCH",
+    },
+    {
+        "case_id": "PQ-19-PROBE-PATH-MISMATCH",
+        "shape": "probe ran in /tmp/probe-1 while the credential lives in /var/lib/agent — path-scoped result",
+        "credit": "Grok Bot (co-review: observation path must be declared)",
+        "receipt": {
+            "kind": "perm_mode",
+            "target_path": "/var/lib/agent/cred",
+            "observed_path": "/tmp/probe-1/cred",
+            "rc": 0,
+            "requested": "0600",
+            "observed": "0660",
+            "checker": "stat",
+            "policy": "tolerate_group",
+            "delta_recorded": True,
+        },
+        "expect": "PERM_PROBE_PATH_MISMATCH",
+    },
+    {
+        "case_id": "PQ-20-DIR-0774",
+        "shape": "dir requested 0700 observed 0774 — world r without x: names listable, entries not traversable",
+        "credit": "Grok Bot (co-review: dir world r vs x semantics)",
+        "receipt": {
+            "kind": "perm_mode",
+            "target_path": "/var/lib/agent/keys",
+            "observed_path": "/var/lib/agent/keys",
+            "rc": 0,
+            "requested": "0700",
+            "observed": "0774",
+            "is_dir": True,
+            "checker": "stat",
+            "policy": "tolerate_group",
+            "delta_recorded": True,
+        },
+        "expect": "PERM_WORLD_READABLE",
     },
 ]
 

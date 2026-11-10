@@ -1,6 +1,6 @@
 {
   "all_match": true,
-  "n": 17,
+  "n": 20,
   "pack": "permission_quantized",
   "rows": [
     {
@@ -259,6 +259,55 @@
       },
       "match": true,
       "shape": "0600 observed as 0602 — world write bit, first-class reason"
+    },
+    {
+      "case_id": "PQ-18-TOLERANCE-SHAPE",
+      "credit": "Grok Bot (co-review: group tolerance must match the host pattern)",
+      "expect": "PERM_TOLERANCE_SHAPE_MISMATCH",
+      "got": "PERM_TOLERANCE_SHAPE_MISMATCH",
+      "judge": {
+        "detail": {
+          "host_add": "0o60",
+          "observed": "0o620",
+          "requested": "0o600"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_TOLERANCE_SHAPE_MISMATCH"
+      },
+      "match": true,
+      "shape": "0600 observed as 0620 — group write only, not the measured host pattern (grp rw)"
+    },
+    {
+      "case_id": "PQ-19-PROBE-PATH-MISMATCH",
+      "credit": "Grok Bot (co-review: observation path must be declared)",
+      "expect": "PERM_PROBE_PATH_MISMATCH",
+      "got": "PERM_PROBE_PATH_MISMATCH",
+      "judge": {
+        "detail": {
+          "observed_path": "/tmp/probe-1/cred",
+          "target_path": "/var/lib/agent/cred"
+        },
+        "judge": "UNKNOWN",
+        "reason_code": "PERM_PROBE_PATH_MISMATCH"
+      },
+      "match": true,
+      "shape": "probe ran in /tmp/probe-1 while the credential lives in /var/lib/agent — path-scoped result"
+    },
+    {
+      "case_id": "PQ-20-DIR-0774",
+      "credit": "Grok Bot (co-review: dir world r vs x semantics)",
+      "expect": "PERM_WORLD_READABLE",
+      "got": "PERM_WORLD_READABLE",
+      "judge": {
+        "detail": {
+          "observed": "0o774",
+          "requested": "0o700"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_WORLD_READABLE"
+      },
+      "match": true,
+      "shape": "dir requested 0700 observed 0774 — world r without x: names listable, entries not traversable"
     }
   ],
   "version": "v0.1"
