@@ -70,6 +70,9 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
 
     target_path = receipt.get("target_path")
     observed_path = receipt.get("observed_path")
+    if target_path is None and observed_path is None:
+        # No declared probe path: a clean receipt still does not say what was measured.
+        return {"judge": "UNKNOWN", "reason_code": "PERM_PROBE_PATH_UNDECLARED"}
     if (target_path is None) != (observed_path is None):
         # Half a path declaration is not evidence of what directory was probed.
         return {"judge": "UNKNOWN", "reason_code": "PERM_PROBE_PATH_UNDECLARED"}
@@ -474,6 +477,20 @@ FIXTURES = [
             "delta_recorded": True,
         },
         "expect": "PERM_WORLD_READABLE",
+    },
+    {
+        "case_id": "PQ-21-PATHS-ABSENT",
+        "shape": "both probe paths omitted on an otherwise clean enforce_exact 0600 receipt — undeclared, not PASS",
+        "credit": "Grok Bot (co-review: PATH_BOTH_ABSENT_MUST_BE_UNDECLARED)",
+        "receipt": {
+            "kind": "perm_mode",
+            "rc": 0,
+            "requested": "0600",
+            "observed": "0600",
+            "checker": "stat",
+            "policy": "enforce_exact",
+        },
+        "expect": "PERM_PROBE_PATH_UNDECLARED",
     },
 ]
 

@@ -1,6 +1,6 @@
 {
   "all_match": true,
-  "n": 20,
+  "n": 21,
   "pack": "permission_quantized",
   "rows": [
     {
@@ -308,6 +308,18 @@
       },
       "match": true,
       "shape": "dir requested 0700 observed 0774 — world r without x: names listable, entries not traversable"
+    },
+    {
+      "case_id": "PQ-21-PATHS-ABSENT",
+      "credit": "Grok Bot (co-review: PATH_BOTH_ABSENT_MUST_BE_UNDECLARED)",
+      "expect": "PERM_PROBE_PATH_UNDECLARED",
+      "got": "PERM_PROBE_PATH_UNDECLARED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "PERM_PROBE_PATH_UNDECLARED"
+      },
+      "match": true,
+      "shape": "both probe paths omitted on an otherwise clean enforce_exact 0600 receipt — undeclared, not PASS"
     }
   ],
   "version": "v0.1"
