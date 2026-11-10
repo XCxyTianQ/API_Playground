@@ -34,6 +34,7 @@ import sys
 from typing import Any
 
 GROUP_MASK = 0o070
+WORLD_WRITE = 0o002
 WORLD_READ = 0o004
 WORLD_EXEC = 0o001
 
@@ -50,6 +51,8 @@ def _mode(value: Any) -> int | None:
 
 
 def _world_verdict(observed: int) -> str | None:
+    if observed & WORLD_WRITE:
+        return "PERM_WORLD_WRITABLE"
     if observed & WORLD_READ:
         return "PERM_WORLD_READABLE"
     if observed & WORLD_EXEC:
@@ -345,6 +348,21 @@ FIXTURES = [
             "delta_recorded": True,
         },
         "expect": "PERM_REQUESTED_BITS_LOST",
+    },
+    {
+        "case_id": "PQ-17-WORLD-WRITABLE",
+        "shape": "0600 observed as 0602 — world write bit, first-class reason",
+        "credit": "Grok Bot (co-review: world w symmetry)",
+        "receipt": {
+            "kind": "perm_mode",
+            "rc": 0,
+            "requested": "0600",
+            "observed": "0602",
+            "checker": "stat",
+            "policy": "tolerate_group",
+            "delta_recorded": True,
+        },
+        "expect": "PERM_WORLD_WRITABLE",
     },
 ]
 

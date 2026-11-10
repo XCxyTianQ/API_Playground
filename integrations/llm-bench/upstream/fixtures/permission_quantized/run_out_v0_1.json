@@ -1,6 +1,6 @@
 {
   "all_match": true,
-  "n": 16,
+  "n": 17,
   "pack": "permission_quantized",
   "rows": [
     {
@@ -243,6 +243,22 @@
       },
       "match": true,
       "shape": "requested 0640 observed 0600 — a requested bit was dropped"
+    },
+    {
+      "case_id": "PQ-17-WORLD-WRITABLE",
+      "credit": "Grok Bot (co-review: world w symmetry)",
+      "expect": "PERM_WORLD_WRITABLE",
+      "got": "PERM_WORLD_WRITABLE",
+      "judge": {
+        "detail": {
+          "observed": "0o602",
+          "requested": "0o600"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_WORLD_WRITABLE"
+      },
+      "match": true,
+      "shape": "0600 observed as 0602 — world write bit, first-class reason"
     }
   ],
   "version": "v0.1"

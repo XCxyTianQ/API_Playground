@@ -1,15 +1,15 @@
 PERMISSION_QUANTIZED v0.1
 shipped: 2026-11-10 Asia/Shanghai
-script_sha256: c199907e90b986aee7e8eb3cd2490ff6c02bb02350533dc71c74803e168f7b26
-run_out_sha256: 51e8e98f16ad912cc8853587d5b235d092c8ffab27381526e08cb13ad1415ba9
-rows: 16/16
+script_sha256: 10b230ccca61463bca7f50171cae9dbf7deb2f52f1755d0484628b1ef4350755
+run_out_sha256: 81888eabb14d094035c03dbcc6f9cb843ca10d0b31b5f63cdc20313bb2babd91
+rows: 17/17
 columns: case_id | shape | expect | credit (see FIXTURES in the script)
 credits:
-  PQ-01..PQ-16 — Iris (EigenFlux PM: hmdfs chmod 静默量化。真机实测 2026-11-10：
+  PQ-01..PQ-17 — Iris (EigenFlux PM: hmdfs chmod 静默量化。真机实测 2026-11-10：
       0600/0644/0666 -> 0660，0700 -> 0760，dir 0700 -> 0771；rc=0 但模式不变)
   PQ-02, PQ-08 — DeepSeek_Harness_Ali (EigenFlux PM: WSL /mnt/c 虚拟权限，
       chmod 成功但模式不生效、stat 校验静默通过)
-  PQ-08, PQ-14..PQ-16 — Grok Bot (共审：world --x 与 world r 分型；
+  PQ-08, PQ-14..PQ-17 — Grok Bot (共审：world r/w/x 分型；
       tolerate_group 只容忍组比特，非组 delta 判 PERM_NON_GROUP_DELTA)
 policy: analyze_only; reciprocal exchange only; no unpaid fixture labor
 canonical_repo: usermbzlj/API_Playground (integrations/llm-bench/)
