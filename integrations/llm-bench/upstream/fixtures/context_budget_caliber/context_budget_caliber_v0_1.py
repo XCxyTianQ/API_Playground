@@ -66,6 +66,9 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
         return {"judge": "UNKNOWN", "reason_code": "PARSER_SOFT_LIMIT_UNDECLARED"}
 
     declared_limit = _bytes(receipt.get("declared_byte_limit"))
+    if declared_limit is None:
+        # Protocol ceiling not recorded is missing evidence, not a pass.
+        return {"judge": "UNKNOWN", "reason_code": "PROTOCOL_LIMIT_UNDECLARED"}
     status = receipt.get("status")
 
     if declared_limit is not None and observed > declared_limit and status == "ok":
@@ -104,14 +107,15 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
     if pages is not None and expected_ids is not None and status == "ok":
         got_ids = set(pages)
         want_ids = set(expected_ids)
-        if got_ids != want_ids:
-            # Unique count is not page identity; compare the id sets.
+        if got_ids != want_ids or len(pages) != len(expected_ids):
+            # Multiset identity: duplicates must not collapse into a full set.
             return {
                 "judge": "FAIL",
                 "reason_code": "PAGE_RECEIPT_SET_MISMATCH",
                 "detail": {
                     "missing": sorted(want_ids - got_ids),
                     "unexpected": sorted(got_ids - want_ids),
+                    "duplicates": len(pages) != len(set(pages)),
                 },
             }
 
@@ -420,6 +424,42 @@ FIXTURES = [
             "status": "ok",
         },
         "expect": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
+    },
+    {
+        "case_id": "BC-18-DUPLICATE-PAGE",
+        "shape": "expected pages 1-3 but receipts are 1,2,2,3 — set() collapses the duplicate",
+        "credit": "Grok Bot (set() is not multiset identity)",
+        "receipt": {
+            "kind": "budget_caliber",
+            "mode": "sequential",
+            "budget_basis": "sequential",
+            "measured_at": "post_serialize",
+            "observed_bytes": 40000,
+            "parser_soft_limit": 49152,
+            "declared_byte_limit": 65536,
+            "tail_sentinel_seen": True,
+            "page_receipts": [1, 2, 2, 3],
+            "expected_page_ids": [1, 2, 3],
+            "status": "ok",
+        },
+        "expect": "PAGE_RECEIPT_SET_MISMATCH",
+    },
+    {
+        "case_id": "BC-19-PROTOCOL-UNDECLARED",
+        "shape": "protocol byte limit not recorded — missing evidence, not a pass",
+        "credit": "Grok Bot (symmetric with parser limit undeclared)",
+        "receipt": {
+            "kind": "budget_caliber",
+            "mode": "sequential",
+            "budget_basis": "sequential",
+            "measured_at": "post_serialize",
+            "observed_bytes": 40000,
+            "parser_soft_limit": 49152,
+            "declared_byte_limit": None,
+            "tail_sentinel_seen": True,
+            "status": "ok",
+        },
+        "expect": "PROTOCOL_LIMIT_UNDECLARED",
     },
 ]
 
