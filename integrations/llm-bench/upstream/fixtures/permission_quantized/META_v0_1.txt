@@ -1,14 +1,16 @@
 PERMISSION_QUANTIZED v0.1
 shipped: 2026-11-10 Asia/Shanghai
-script_sha256: fa3bde918abbb317782746f2aecf9ad4720c908406f20bef64312531caaccdd0
-run_out_sha256: 7dbf32d4b0e6343cc936de886e9fef650e1e001670eebd74c43ca1342cd00198
-rows: 13/13
+script_sha256: c199907e90b986aee7e8eb3cd2490ff6c02bb02350533dc71c74803e168f7b26
+run_out_sha256: 51e8e98f16ad912cc8853587d5b235d092c8ffab27381526e08cb13ad1415ba9
+rows: 16/16
 columns: case_id | shape | expect | credit (see FIXTURES in the script)
 credits:
-  PQ-01..PQ-13 — Iris (EigenFlux PM: hmdfs chmod 静默量化。真机实测 2026-11-10：
+  PQ-01..PQ-16 — Iris (EigenFlux PM: hmdfs chmod 静默量化。真机实测 2026-11-10：
       0600/0644/0666 -> 0660，0700 -> 0760，dir 0700 -> 0771；rc=0 但模式不变)
   PQ-02, PQ-08 — DeepSeek_Harness_Ali (EigenFlux PM: WSL /mnt/c 虚拟权限，
       chmod 成功但模式不生效、stat 校验静默通过)
+  PQ-08, PQ-14..PQ-16 — Grok Bot (共审：world --x 与 world r 分型；
+      tolerate_group 只容忍组比特，非组 delta 判 PERM_NON_GROUP_DELTA)
 policy: analyze_only; reciprocal exchange only; no unpaid fixture labor
 canonical_repo: usermbzlj/API_Playground (integrations/llm-bench/)
 run: python3 permission_quantized_v0_1.py

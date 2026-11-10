@@ -1,6 +1,6 @@
 {
   "all_match": true,
-  "n": 13,
+  "n": 16,
   "pack": "permission_quantized",
   "rows": [
     {
@@ -45,7 +45,7 @@
         "reason_code": "PERM_GROUP_TOLERATED"
       },
       "match": true,
-      "shape": "0660 on a host that cannot drop group bits, delta recorded"
+      "shape": "0660 on a host that cannot drop group bits, group-only delta recorded"
     },
     {
       "case_id": "PQ-04-EXACT-ENFORCED",
@@ -107,20 +107,20 @@
       "shape": "policy requires 0600 but the host only reaches 0660"
     },
     {
-      "case_id": "PQ-08-DIR-WORLD-EXEC",
-      "credit": "Iris (EigenFlux PM: measured dir 0700->0771)",
-      "expect": "PERM_WORLD_READABLE",
-      "got": "PERM_WORLD_READABLE",
+      "case_id": "PQ-08-DIR-WORLD-TRAVERSE",
+      "credit": "Iris (EigenFlux PM: measured dir 0700->0771); Grok Bot (world --x vs --r caliber)",
+      "expect": "PERM_WORLD_TRAVERSABLE",
+      "got": "PERM_WORLD_TRAVERSABLE",
       "judge": {
         "detail": {
           "observed": "0o771",
           "requested": "0o700"
         },
         "judge": "FAIL",
-        "reason_code": "PERM_WORLD_READABLE"
+        "reason_code": "PERM_WORLD_TRAVERSABLE"
       },
       "match": true,
-      "shape": "directory requested 0700 observed 0771 — world can list and traverse"
+      "shape": "directory requested 0700 observed 0771 — world has --x (traverse, not list)"
     },
     {
       "case_id": "PQ-09-RC-NONZERO-IGNORED",
@@ -194,6 +194,55 @@
       },
       "match": true,
       "shape": "chmod returned non-zero and the writer stopped — visible failure"
+    },
+    {
+      "case_id": "PQ-14-DIR-WORLD-READABLE",
+      "credit": "Grok Bot (co-review: 0775 vs 0771 caliber)",
+      "expect": "PERM_WORLD_READABLE",
+      "got": "PERM_WORLD_READABLE",
+      "judge": {
+        "detail": {
+          "observed": "0o775",
+          "requested": "0o700"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_WORLD_READABLE"
+      },
+      "match": true,
+      "shape": "directory requested 0700 observed 0775 — world r+x, can list and traverse"
+    },
+    {
+      "case_id": "PQ-15-NON-GROUP-DELTA",
+      "credit": "Grok Bot (co-review: GROUP_TOLERANCE_MUST_BIND_ONLY_GROUP_BITS)",
+      "expect": "PERM_NON_GROUP_DELTA",
+      "got": "PERM_NON_GROUP_DELTA",
+      "judge": {
+        "detail": {
+          "diff": "0o100",
+          "observed": "0o700",
+          "requested": "0o600"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_NON_GROUP_DELTA"
+      },
+      "match": true,
+      "shape": "0600 observed as 0700 under tolerate_group — owner bit added, not a group delta"
+    },
+    {
+      "case_id": "PQ-16-REQUESTED-BITS-LOST",
+      "credit": "Grok Bot (co-review: tolerance must not hide a lost bit)",
+      "expect": "PERM_REQUESTED_BITS_LOST",
+      "got": "PERM_REQUESTED_BITS_LOST",
+      "judge": {
+        "detail": {
+          "observed": "0o600",
+          "requested": "0o640"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_REQUESTED_BITS_LOST"
+      },
+      "match": true,
+      "shape": "requested 0640 observed 0600 — a requested bit was dropped"
     }
   ],
   "version": "v0.1"

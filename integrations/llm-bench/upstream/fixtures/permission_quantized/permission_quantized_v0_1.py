@@ -5,18 +5,27 @@ False-green shape: "chmod returned 0, therefore the permission is enforced".
 
 Measured on a real host (HarmonyOS PC, hmdfs, 2026-11-10): chmod never errors,
 but the mode is quantized — requested 0600/0644/0666 all land on 0660, 0700
-lands on 0760, and a directory requested at 0700 stays 0771 (world r-x). A
-checker that only gates on the chmod return code, or only asks "is group/world
-writable", sees a clean receipt while the credential sits group-readable (or
-the directory world-listable).
+lands on 0760, and a directory requested at 0700 stays 0771 (world has --x,
+i.e. traverse but not list). A checker that only gates on the chmod return
+code, or only asks "is group/world writable", sees a clean receipt while the
+credential sits group-readable (or the directory stays world-traversable).
 
 The same half-open state appears on WSL /mnt/c: chmod succeeds, the mode bits
 are virtual, and a stat probe that trusts the call reports success.
 
+Two caliber locks in this version:
+
+  * World bits are classified, not lumped: world r (0o004) is readable,
+    world x alone (0o001) is traversable. "world can list" needs world r,
+    so a 0771 directory is PERM_WORLD_TRAVERSABLE, never PERM_WORLD_READABLE.
+  * tolerate_group only tolerates the group bits the host adds. Any differing
+    bit outside 0o070 is PERM_NON_GROUP_DELTA (e.g. 0600 -> 0700), and a
+    requested bit that the host drops is PERM_REQUESTED_BITS_LOST.
+
 Rows are four columns: case_id | shape | expected verdict | credit.
 analyze_only; stdlib only.
 Credit: Iris (EigenFlux PM, hmdfs real-host measurement); DeepSeek_Harness_Ali
-(EigenFlux PM, WSL /mnt/c analog); Grok Bot (pack format).
+(EigenFlux PM, WSL /mnt/c analog); Grok Bot (pack format and co-review locks).
 """
 from __future__ import annotations
 
@@ -24,7 +33,9 @@ import json
 import sys
 from typing import Any
 
-WORLD_BITS = 0o007
+GROUP_MASK = 0o070
+WORLD_READ = 0o004
+WORLD_EXEC = 0o001
 
 
 def _mode(value: Any) -> int | None:
@@ -36,6 +47,14 @@ def _mode(value: Any) -> int | None:
         return int(str(value), 8)
     except ValueError:
         return None
+
+
+def _world_verdict(observed: int) -> str | None:
+    if observed & WORLD_READ:
+        return "PERM_WORLD_READABLE"
+    if observed & WORLD_EXEC:
+        return "PERM_WORLD_TRAVERSABLE"
+    return None
 
 
 def judge(receipt: dict[str, Any]) -> dict[str, Any]:
@@ -73,11 +92,12 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
     if requested is None:
         return {"judge": "UNKNOWN", "reason_code": "PERM_REQUEST_UNDECLARED"}
 
-    if observed & WORLD_BITS:
-        # world-readable, world-writable or world-listable is never tolerable.
+    world = _world_verdict(observed)
+    if world:
+        # world-readable, world-writable or world-traversable is never tolerable.
         return {
             "judge": "FAIL",
-            "reason_code": "PERM_WORLD_READABLE",
+            "reason_code": world,
             "detail": {"requested": oct(requested), "observed": oct(observed)},
         }
 
@@ -87,6 +107,21 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
             return {
                 "judge": "FAIL",
                 "reason_code": "PERM_POLICY_UNSATISFIABLE",
+                "detail": {"requested": oct(requested), "observed": oct(observed)},
+            }
+        diff = observed ^ requested
+        if diff & ~GROUP_MASK:
+            # Tolerance is bound to group bits only; owner/other drift is not tolerated.
+            return {
+                "judge": "FAIL",
+                "reason_code": "PERM_NON_GROUP_DELTA",
+                "detail": {"requested": oct(requested), "observed": oct(observed), "diff": oct(diff)},
+            }
+        if requested & ~observed:
+            # A requested bit was dropped: the declared access is not there.
+            return {
+                "judge": "FAIL",
+                "reason_code": "PERM_REQUESTED_BITS_LOST",
                 "detail": {"requested": oct(requested), "observed": oct(observed)},
             }
         if not receipt.get("delta_recorded"):
@@ -137,7 +172,7 @@ FIXTURES = [
     },
     {
         "case_id": "PQ-03-GROUP-TOLERATED",
-        "shape": "0660 on a host that cannot drop group bits, delta recorded",
+        "shape": "0660 on a host that cannot drop group bits, group-only delta recorded",
         "credit": "Iris (EigenFlux PM: measured 0600->0660)",
         "receipt": {
             "kind": "perm_mode",
@@ -202,9 +237,9 @@ FIXTURES = [
         "expect": "PERM_POLICY_UNSATISFIABLE",
     },
     {
-        "case_id": "PQ-08-DIR-WORLD-EXEC",
-        "shape": "directory requested 0700 observed 0771 — world can list and traverse",
-        "credit": "Iris (EigenFlux PM: measured dir 0700->0771)",
+        "case_id": "PQ-08-DIR-WORLD-TRAVERSE",
+        "shape": "directory requested 0700 observed 0771 — world has --x (traverse, not list)",
+        "credit": "Iris (EigenFlux PM: measured dir 0700->0771); Grok Bot (world --x vs --r caliber)",
         "receipt": {
             "kind": "perm_mode",
             "rc": 0,
@@ -214,7 +249,7 @@ FIXTURES = [
             "policy": "tolerate_group",
             "delta_recorded": True,
         },
-        "expect": "PERM_WORLD_READABLE",
+        "expect": "PERM_WORLD_TRAVERSABLE",
     },
     {
         "case_id": "PQ-09-RC-NONZERO-IGNORED",
@@ -266,6 +301,51 @@ FIXTURES = [
         "receipt": {"kind": "perm_mode", "rc": 1, "requested": "0600", "observed": "0660", "checker": "stat", "policy": "tolerate_group"},
         "expect": "PERM_CHMOD_FAILED_VISIBLE",
     },
+    {
+        "case_id": "PQ-14-DIR-WORLD-READABLE",
+        "shape": "directory requested 0700 observed 0775 — world r+x, can list and traverse",
+        "credit": "Grok Bot (co-review: 0775 vs 0771 caliber)",
+        "receipt": {
+            "kind": "perm_mode",
+            "rc": 0,
+            "requested": "0700",
+            "observed": "0775",
+            "checker": "stat",
+            "policy": "tolerate_group",
+            "delta_recorded": True,
+        },
+        "expect": "PERM_WORLD_READABLE",
+    },
+    {
+        "case_id": "PQ-15-NON-GROUP-DELTA",
+        "shape": "0600 observed as 0700 under tolerate_group — owner bit added, not a group delta",
+        "credit": "Grok Bot (co-review: GROUP_TOLERANCE_MUST_BIND_ONLY_GROUP_BITS)",
+        "receipt": {
+            "kind": "perm_mode",
+            "rc": 0,
+            "requested": "0600",
+            "observed": "0700",
+            "checker": "stat",
+            "policy": "tolerate_group",
+            "delta_recorded": True,
+        },
+        "expect": "PERM_NON_GROUP_DELTA",
+    },
+    {
+        "case_id": "PQ-16-REQUESTED-BITS-LOST",
+        "shape": "requested 0640 observed 0600 — a requested bit was dropped",
+        "credit": "Grok Bot (co-review: tolerance must not hide a lost bit)",
+        "receipt": {
+            "kind": "perm_mode",
+            "rc": 0,
+            "requested": "0640",
+            "observed": "0600",
+            "checker": "stat",
+            "policy": "tolerate_group",
+            "delta_recorded": True,
+        },
+        "expect": "PERM_REQUESTED_BITS_LOST",
+    },
 ]
 
 
@@ -293,7 +373,7 @@ def main(argv: list[str]) -> int:
     print(f"PERMISSION_QUANTIZED v0.1  selftest {total - failures}/{total}")
     for row in rows:
         mark = "ok  " if row["match"] else "FAIL"
-        print(f"  {mark} {row['case_id']:<26} expect={row['expect']:<28} got={row['got']}")
+        print(f"  {mark} {row['case_id']:<28} expect={row['expect']:<30} got={row['got']}")
     doc = {
         "pack": "permission_quantized",
         "version": "v0.1",
