@@ -1,6 +1,6 @@
 {
   "all_match": true,
-  "n": 13,
+  "n": 17,
   "pack": "context_budget_caliber",
   "rows": [
     {
@@ -135,19 +135,18 @@
     {
       "case_id": "BC-11-PAGE-RECEIPT-GAP",
       "credit": "Inno (per-page receipts)",
-      "expect": "PAGE_RECEIPT_GAP",
-      "got": "PAGE_RECEIPT_GAP",
+      "expect": "PAGE_RECEIPT_SET_MISMATCH",
+      "got": "PAGE_RECEIPT_SET_MISMATCH",
       "judge": {
         "detail": {
-          "expected_pages": 5,
-          "received": [
-            1,
-            2,
-            3
-          ]
+          "missing": [
+            4,
+            5
+          ],
+          "unexpected": []
         },
         "judge": "FAIL",
-        "reason_code": "PAGE_RECEIPT_GAP"
+        "reason_code": "PAGE_RECEIPT_SET_MISMATCH"
       },
       "match": true,
       "shape": "5 pages expected, receipts for 1/2/3 only, gate still reported ok"
@@ -160,7 +159,8 @@
       "judge": {
         "detail": {
           "declared_byte_limit": 65536,
-          "observed_bytes": 70000
+          "observed_bytes": 70000,
+          "parser_soft_limit": 80000
         },
         "judge": "FAIL",
         "reason_code": "PROTOCOL_LIMIT_EXCEEDED_AS_OK"
@@ -179,6 +179,67 @@
       },
       "match": true,
       "shape": "parser soft limit not recorded — only the protocol limit is known"
+    },
+    {
+      "case_id": "BC-14-PAGE-ID-SHIFT",
+      "credit": "Grok Bot (UNIQUE_COUNT_IS_NOT_PAGE_IDENTITY)",
+      "expect": "PAGE_RECEIPT_SET_MISMATCH",
+      "got": "PAGE_RECEIPT_SET_MISMATCH",
+      "judge": {
+        "detail": {
+          "missing": [
+            1
+          ],
+          "unexpected": [
+            6
+          ]
+        },
+        "judge": "FAIL",
+        "reason_code": "PAGE_RECEIPT_SET_MISMATCH"
+      },
+      "match": true,
+      "shape": "expected pages 1-5 but receipts are 2-6: unique count is 5, identity is wrong"
+    },
+    {
+      "case_id": "BC-15-EXPECTED-ONLY",
+      "credit": "Grok Bot (PAGE_EXPECTED_WITHOUT_RECEIPTS_MUST_NOT_PASS)",
+      "expect": "PAGE_RECEIPT_UNDECLARED",
+      "got": "PAGE_RECEIPT_UNDECLARED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "PAGE_RECEIPT_UNDECLARED"
+      },
+      "match": true,
+      "shape": "expected pages declared, no receipts recorded — the page gate cannot pass"
+    },
+    {
+      "case_id": "BC-16-RECEIPTS-ONLY",
+      "credit": "Grok Bot (PAGE_EXPECTED_WITHOUT_RECEIPTS_MUST_NOT_PASS)",
+      "expect": "PAGE_RECEIPT_UNDECLARED",
+      "got": "PAGE_RECEIPT_UNDECLARED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "PAGE_RECEIPT_UNDECLARED"
+      },
+      "match": true,
+      "shape": "receipts recorded, expected pages not declared — no denominator"
+    },
+    {
+      "case_id": "BC-17-BOTH-LIMITS-EXCEEDED",
+      "credit": "Grok Bot (one reason must not mask another)",
+      "expect": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
+      "got": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
+      "judge": {
+        "detail": {
+          "declared_byte_limit": 65536,
+          "observed_bytes": 70000,
+          "parser_soft_limit": 60000
+        },
+        "judge": "FAIL",
+        "reason_code": "PROTOCOL_LIMIT_EXCEEDED_AS_OK"
+      },
+      "match": true,
+      "shape": "70000 bytes over both the 65536 protocol limit and the 60000 parser ceiling — protocol code wins, parser surfaced in detail"
     }
   ],
   "version": "v0.1"

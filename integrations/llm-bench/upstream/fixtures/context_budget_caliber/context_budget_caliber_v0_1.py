@@ -68,19 +68,25 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
     declared_limit = _bytes(receipt.get("declared_byte_limit"))
     status = receipt.get("status")
 
+    if declared_limit is not None and observed > declared_limit and status == "ok":
+        # Protocol ceiling first: this is a contract violation, and it must not be
+        # masked by the parser-ceiling check below.
+        return {
+            "judge": "FAIL",
+            "reason_code": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
+            "detail": {
+                "observed_bytes": observed,
+                "declared_byte_limit": declared_limit,
+                "parser_soft_limit": parser_limit,
+            },
+        }
+
     if observed > parser_limit and status == "ok":
         # Under the protocol limit but over the parser ceiling: cut, not green.
         return {
             "judge": "FAIL",
             "reason_code": "PARSER_TRUNCATION_MASKED",
             "detail": {"observed_bytes": observed, "parser_soft_limit": parser_limit, "declared_byte_limit": declared_limit},
-        }
-
-    if declared_limit is not None and observed > declared_limit and status == "ok":
-        return {
-            "judge": "FAIL",
-            "reason_code": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
-            "detail": {"observed_bytes": observed, "declared_byte_limit": declared_limit},
         }
 
     sentinel = receipt.get("tail_sentinel_seen")
@@ -91,13 +97,22 @@ def judge(receipt: dict[str, Any]) -> dict[str, Any]:
         return {"judge": "FAIL", "reason_code": "TRUNCATED_AS_OK"}
 
     pages = receipt.get("page_receipts")
-    expected_pages = receipt.get("expected_pages")
-    if pages is not None and expected_pages is not None and status == "ok":
-        if len(set(pages)) < expected_pages:
+    expected_ids = receipt.get("expected_page_ids")
+    if (pages is None) != (expected_ids is None):
+        # A page gate needs both sides; a one-sided declaration cannot pass.
+        return {"judge": "UNKNOWN", "reason_code": "PAGE_RECEIPT_UNDECLARED"}
+    if pages is not None and expected_ids is not None and status == "ok":
+        got_ids = set(pages)
+        want_ids = set(expected_ids)
+        if got_ids != want_ids:
+            # Unique count is not page identity; compare the id sets.
             return {
                 "judge": "FAIL",
-                "reason_code": "PAGE_RECEIPT_GAP",
-                "detail": {"received": sorted(set(pages)), "expected_pages": expected_pages},
+                "reason_code": "PAGE_RECEIPT_SET_MISMATCH",
+                "detail": {
+                    "missing": sorted(want_ids - got_ids),
+                    "unexpected": sorted(got_ids - want_ids),
+                },
             }
 
     if status != "ok":
@@ -295,10 +310,10 @@ FIXTURES = [
             "declared_byte_limit": 65536,
             "tail_sentinel_seen": True,
             "page_receipts": [1, 2, 3],
-            "expected_pages": 5,
+            "expected_page_ids": [1, 2, 3, 4, 5],
             "status": "ok",
         },
-        "expect": "PAGE_RECEIPT_GAP",
+        "expect": "PAGE_RECEIPT_SET_MISMATCH",
     },
     {
         "case_id": "BC-12-PROTOCOL-EXCEEDED",
@@ -333,6 +348,78 @@ FIXTURES = [
             "status": "ok",
         },
         "expect": "PARSER_SOFT_LIMIT_UNDECLARED",
+    },
+    {
+        "case_id": "BC-14-PAGE-ID-SHIFT",
+        "shape": "expected pages 1-5 but receipts are 2-6: unique count is 5, identity is wrong",
+        "credit": "Grok Bot (UNIQUE_COUNT_IS_NOT_PAGE_IDENTITY)",
+        "receipt": {
+            "kind": "budget_caliber",
+            "mode": "sequential",
+            "budget_basis": "sequential",
+            "measured_at": "post_serialize",
+            "observed_bytes": 40000,
+            "parser_soft_limit": 49152,
+            "declared_byte_limit": 65536,
+            "tail_sentinel_seen": True,
+            "page_receipts": [2, 3, 4, 5, 6],
+            "expected_page_ids": [1, 2, 3, 4, 5],
+            "status": "ok",
+        },
+        "expect": "PAGE_RECEIPT_SET_MISMATCH",
+    },
+    {
+        "case_id": "BC-15-EXPECTED-ONLY",
+        "shape": "expected pages declared, no receipts recorded — the page gate cannot pass",
+        "credit": "Grok Bot (PAGE_EXPECTED_WITHOUT_RECEIPTS_MUST_NOT_PASS)",
+        "receipt": {
+            "kind": "budget_caliber",
+            "mode": "sequential",
+            "budget_basis": "sequential",
+            "measured_at": "post_serialize",
+            "observed_bytes": 40000,
+            "parser_soft_limit": 49152,
+            "declared_byte_limit": 65536,
+            "tail_sentinel_seen": True,
+            "expected_page_ids": [1, 2, 3],
+            "status": "ok",
+        },
+        "expect": "PAGE_RECEIPT_UNDECLARED",
+    },
+    {
+        "case_id": "BC-16-RECEIPTS-ONLY",
+        "shape": "receipts recorded, expected pages not declared — no denominator",
+        "credit": "Grok Bot (PAGE_EXPECTED_WITHOUT_RECEIPTS_MUST_NOT_PASS)",
+        "receipt": {
+            "kind": "budget_caliber",
+            "mode": "sequential",
+            "budget_basis": "sequential",
+            "measured_at": "post_serialize",
+            "observed_bytes": 40000,
+            "parser_soft_limit": 49152,
+            "declared_byte_limit": 65536,
+            "tail_sentinel_seen": True,
+            "page_receipts": [1, 2],
+            "status": "ok",
+        },
+        "expect": "PAGE_RECEIPT_UNDECLARED",
+    },
+    {
+        "case_id": "BC-17-BOTH-LIMITS-EXCEEDED",
+        "shape": "70000 bytes over both the 65536 protocol limit and the 60000 parser ceiling — protocol code wins, parser surfaced in detail",
+        "credit": "Grok Bot (one reason must not mask another)",
+        "receipt": {
+            "kind": "budget_caliber",
+            "mode": "concurrent",
+            "budget_basis": "concurrent",
+            "measured_at": "post_serialize",
+            "observed_bytes": 70000,
+            "parser_soft_limit": 60000,
+            "declared_byte_limit": 65536,
+            "tail_sentinel_seen": True,
+            "status": "ok",
+        },
+        "expect": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
     },
 ]
 
