@@ -1,0 +1,185 @@
+{
+  "all_match": true,
+  "n": 13,
+  "pack": "context_budget_caliber",
+  "rows": [
+    {
+      "case_id": "BC-01-SEQ-AS-CONCURRENT",
+      "credit": "Grok Bot (CONTEXT_BUDGET_SEQUENTIAL_READ_IS_NOT_CONCURRENT_BUDGET)",
+      "expect": "SEQUENTIAL_BUDGET_APPLIED_TO_CONCURRENT",
+      "got": "SEQUENTIAL_BUDGET_APPLIED_TO_CONCURRENT",
+      "judge": {
+        "detail": {
+          "budget_basis": "sequential",
+          "mode": "concurrent"
+        },
+        "judge": "FAIL",
+        "reason_code": "SEQUENTIAL_BUDGET_APPLIED_TO_CONCURRENT"
+      },
+      "match": true,
+      "shape": "concurrent pass judged against the sequential pass's measured budget"
+    },
+    {
+      "case_id": "BC-02-CONCURRENT-OK",
+      "credit": "Iris (pack)",
+      "expect": "BUDGET_OK",
+      "got": "BUDGET_OK",
+      "judge": {
+        "judge": "PASS",
+        "reason_code": "BUDGET_OK"
+      },
+      "match": true,
+      "shape": "concurrent pass measured under its own ceiling, sentinel present"
+    },
+    {
+      "case_id": "BC-03-PROTOCOL-MASKS-PARSER",
+      "credit": "Grok Bot (PROTOCOL_BYTE_LIMIT_IS_NOT_PARSER_SOFT_LIMIT)",
+      "expect": "PARSER_TRUNCATION_MASKED",
+      "got": "PARSER_TRUNCATION_MASKED",
+      "judge": {
+        "detail": {
+          "declared_byte_limit": 65536,
+          "observed_bytes": 60000,
+          "parser_soft_limit": 49152
+        },
+        "judge": "FAIL",
+        "reason_code": "PARSER_TRUNCATION_MASKED"
+      },
+      "match": true,
+      "shape": "60000 bytes under the 65536 protocol limit but over the 49152 parser ceiling, reported ok"
+    },
+    {
+      "case_id": "BC-04-PARSER-RESPECTED",
+      "credit": "Iris (pack)",
+      "expect": "BUDGET_OK",
+      "got": "BUDGET_OK",
+      "judge": {
+        "judge": "PASS",
+        "reason_code": "BUDGET_OK"
+      },
+      "match": true,
+      "shape": "48000 bytes under the parser ceiling, sentinel present"
+    },
+    {
+      "case_id": "BC-05-BYTES-UNMEASURED",
+      "credit": "Iris (pack)",
+      "expect": "BYTES_UNMEASURED",
+      "got": "BYTES_UNMEASURED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "BYTES_UNMEASURED"
+      },
+      "match": true,
+      "shape": "no measured byte count — nothing to compare against either limit"
+    },
+    {
+      "case_id": "BC-06-TRUNCATED-AS-OK",
+      "credit": "Inno (tail sentinel); Hermes (three states)",
+      "expect": "TRUNCATED_AS_OK",
+      "got": "TRUNCATED_AS_OK",
+      "judge": {
+        "judge": "FAIL",
+        "reason_code": "TRUNCATED_AS_OK"
+      },
+      "match": true,
+      "shape": "exactly at the parser ceiling with the tail sentinel missing, reported ok"
+    },
+    {
+      "case_id": "BC-07-AT-LIMIT-OK",
+      "credit": "Hermes (at-limit-but-not-truncated)",
+      "expect": "AT_LIMIT_NOT_TRUNCATED",
+      "got": "AT_LIMIT_NOT_TRUNCATED",
+      "judge": {
+        "judge": "PASS",
+        "reason_code": "AT_LIMIT_NOT_TRUNCATED"
+      },
+      "match": true,
+      "shape": "exactly at the parser ceiling with the tail sentinel present — not truncated"
+    },
+    {
+      "case_id": "BC-08-BELOW-LIMIT",
+      "credit": "Iris (pack)",
+      "expect": "BUDGET_OK",
+      "got": "BUDGET_OK",
+      "judge": {
+        "judge": "PASS",
+        "reason_code": "BUDGET_OK"
+      },
+      "match": true,
+      "shape": "plain pass well under both ceilings"
+    },
+    {
+      "case_id": "BC-09-PRE-SERIALIZE",
+      "credit": "Iris (pack)",
+      "expect": "MEASURE_BEFORE_SERIALIZATION",
+      "got": "MEASURE_BEFORE_SERIALIZATION",
+      "judge": {
+        "judge": "FAIL",
+        "reason_code": "MEASURE_BEFORE_SERIALIZATION"
+      },
+      "match": true,
+      "shape": "byte count taken on the in-memory object before serialization"
+    },
+    {
+      "case_id": "BC-10-SENTINEL-UNDECLARED",
+      "credit": "Inno (tail sentinel)",
+      "expect": "TAIL_SENTINEL_UNDECLARED",
+      "got": "TAIL_SENTINEL_UNDECLARED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "TAIL_SENTINEL_UNDECLARED"
+      },
+      "match": true,
+      "shape": "no tail sentinel field — completeness cannot be established"
+    },
+    {
+      "case_id": "BC-11-PAGE-RECEIPT-GAP",
+      "credit": "Inno (per-page receipts)",
+      "expect": "PAGE_RECEIPT_GAP",
+      "got": "PAGE_RECEIPT_GAP",
+      "judge": {
+        "detail": {
+          "expected_pages": 5,
+          "received": [
+            1,
+            2,
+            3
+          ]
+        },
+        "judge": "FAIL",
+        "reason_code": "PAGE_RECEIPT_GAP"
+      },
+      "match": true,
+      "shape": "5 pages expected, receipts for 1/2/3 only, gate still reported ok"
+    },
+    {
+      "case_id": "BC-12-PROTOCOL-EXCEEDED",
+      "credit": "Grok Bot (protocol limit is a hard ceiling, not advice)",
+      "expect": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
+      "got": "PROTOCOL_LIMIT_EXCEEDED_AS_OK",
+      "judge": {
+        "detail": {
+          "declared_byte_limit": 65536,
+          "observed_bytes": 70000
+        },
+        "judge": "FAIL",
+        "reason_code": "PROTOCOL_LIMIT_EXCEEDED_AS_OK"
+      },
+      "match": true,
+      "shape": "70000 bytes over the 65536 protocol limit with a generous parser, reported ok"
+    },
+    {
+      "case_id": "BC-13-PARSER-UNDECLARED",
+      "credit": "Grok Bot (caliber must be recorded per limiter)",
+      "expect": "PARSER_SOFT_LIMIT_UNDECLARED",
+      "got": "PARSER_SOFT_LIMIT_UNDECLARED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "PARSER_SOFT_LIMIT_UNDECLARED"
+      },
+      "match": true,
+      "shape": "parser soft limit not recorded — only the protocol limit is known"
+    }
+  ],
+  "version": "v0.1"
+}

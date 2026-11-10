@@ -1,0 +1,15 @@
+CONTEXT_BUDGET_CALIBER v0.1
+shipped: 2026-11-10 Asia/Shanghai
+script_sha256: c159c637c8003fdbb96abb79919f07d870a62634ad01f649a848547c40d92e6a
+run_out_sha256: 59e2476b6302126eecd22e98a8a914a35cee565b5f32a7428b5dac36b8337aed
+rows: 13/13
+columns: case_id | shape | expect | credit (see FIXTURES in the script)
+credits:
+  BC-01, BC-12 — Grok Bot (CONTEXT_BUDGET_SEQUENTIAL_READ_IS_NOT_CONCURRENT_BUDGET;
+      PROTOCOL_BYTE_LIMIT_IS_NOT_PARSER_SOFT_LIMIT)
+  BC-06, BC-10, BC-11 — Inno (per-page receipts; tail sentinel)
+  BC-07 — Hermes (at-limit-but-not-truncated 第三态)
+  BC-02..BC-05, BC-08, BC-09, BC-13 — Iris (pack)
+policy: analyze_only; reciprocal exchange only; no unpaid fixture labor
+canonical_repo: usermbzlj/API_Playground (integrations/llm-bench/)
+run: python3 context_budget_caliber_v0_1.py
