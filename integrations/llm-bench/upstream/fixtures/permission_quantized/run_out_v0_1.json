@@ -1,0 +1,200 @@
+{
+  "all_match": true,
+  "n": 13,
+  "pack": "permission_quantized",
+  "rows": [
+    {
+      "case_id": "PQ-01-RC-ONLY",
+      "credit": "Iris (EigenFlux PM: hmdfs)",
+      "expect": "PERM_RC_IS_NOT_EVIDENCE",
+      "got": "PERM_RC_IS_NOT_EVIDENCE",
+      "judge": {
+        "judge": "FAIL",
+        "reason_code": "PERM_RC_IS_NOT_EVIDENCE"
+      },
+      "match": true,
+      "shape": "chmod rc=0, mode quantized to 0660, checker reads rc only"
+    },
+    {
+      "case_id": "PQ-02-WORLD-READABLE",
+      "credit": "Iris (EigenFlux PM); DeepSeek_Harness_Ali (WSL /mnt/c)",
+      "expect": "PERM_WORLD_READABLE",
+      "got": "PERM_WORLD_READABLE",
+      "judge": {
+        "detail": {
+          "observed": "0o664",
+          "requested": "0o600"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_WORLD_READABLE"
+      },
+      "match": true,
+      "shape": "observed 0664 — group and world can read the credential"
+    },
+    {
+      "case_id": "PQ-03-GROUP-TOLERATED",
+      "credit": "Iris (EigenFlux PM: measured 0600->0660)",
+      "expect": "PERM_GROUP_TOLERATED",
+      "got": "PERM_GROUP_TOLERATED",
+      "judge": {
+        "detail": {
+          "observed": "0o660",
+          "requested": "0o600"
+        },
+        "judge": "PASS",
+        "reason_code": "PERM_GROUP_TOLERATED"
+      },
+      "match": true,
+      "shape": "0660 on a host that cannot drop group bits, delta recorded"
+    },
+    {
+      "case_id": "PQ-04-EXACT-ENFORCED",
+      "credit": "Iris (EigenFlux PM: control on a permission-honoring path)",
+      "expect": "PERM_ENFORCED",
+      "got": "PERM_ENFORCED",
+      "judge": {
+        "detail": {
+          "mode": "0o600"
+        },
+        "judge": "PASS",
+        "reason_code": "PERM_ENFORCED"
+      },
+      "match": true,
+      "shape": "host honors the request: 0600 observed as 0600"
+    },
+    {
+      "case_id": "PQ-05-UNOBSERVED",
+      "credit": "Iris (EigenFlux PM)",
+      "expect": "PERM_UNOBSERVED",
+      "got": "PERM_UNOBSERVED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "PERM_UNOBSERVED"
+      },
+      "match": true,
+      "shape": "stat unavailable — no observation, no verdict"
+    },
+    {
+      "case_id": "PQ-06-MODE-DRIFT",
+      "credit": "Iris (EigenFlux PM)",
+      "expect": "MODE_DRIFT",
+      "got": "MODE_DRIFT",
+      "judge": {
+        "detail": {
+          "ingest": "0600",
+          "use": "0660"
+        },
+        "judge": "FAIL",
+        "reason_code": "MODE_DRIFT"
+      },
+      "match": true,
+      "shape": "0600 at ingest, 0660 at use — state moved between write and read"
+    },
+    {
+      "case_id": "PQ-07-EXACT-UNSATISFIABLE",
+      "credit": "Iris (EigenFlux PM: hmdfs cannot satisfy enforce_exact)",
+      "expect": "PERM_POLICY_UNSATISFIABLE",
+      "got": "PERM_POLICY_UNSATISFIABLE",
+      "judge": {
+        "detail": {
+          "observed": "0o660",
+          "requested": "0o600"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_POLICY_UNSATISFIABLE"
+      },
+      "match": true,
+      "shape": "policy requires 0600 but the host only reaches 0660"
+    },
+    {
+      "case_id": "PQ-08-DIR-WORLD-EXEC",
+      "credit": "Iris (EigenFlux PM: measured dir 0700->0771)",
+      "expect": "PERM_WORLD_READABLE",
+      "got": "PERM_WORLD_READABLE",
+      "judge": {
+        "detail": {
+          "observed": "0o771",
+          "requested": "0o700"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_WORLD_READABLE"
+      },
+      "match": true,
+      "shape": "directory requested 0700 observed 0771 — world can list and traverse"
+    },
+    {
+      "case_id": "PQ-09-RC-NONZERO-IGNORED",
+      "credit": "Iris (EigenFlux PM)",
+      "expect": "PERM_CHMOD_NONZERO_IGNORED",
+      "got": "PERM_CHMOD_NONZERO_IGNORED",
+      "judge": {
+        "detail": {
+          "rc": 1
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_CHMOD_NONZERO_IGNORED"
+      },
+      "match": true,
+      "shape": "chmod returned 1 and the writer wrote the credential anyway"
+    },
+    {
+      "case_id": "PQ-10-POLICY-UNDECLARED",
+      "credit": "Iris (EigenFlux PM)",
+      "expect": "PERM_POLICY_UNDECLARED",
+      "got": "PERM_POLICY_UNDECLARED",
+      "judge": {
+        "judge": "UNKNOWN",
+        "reason_code": "PERM_POLICY_UNDECLARED"
+      },
+      "match": true,
+      "shape": "no declared tolerance policy — cannot decide, must not pass"
+    },
+    {
+      "case_id": "PQ-11-DELTA-UNRECORDED",
+      "credit": "Iris (EigenFlux PM)",
+      "expect": "PERM_DELTA_UNRECORDED",
+      "got": "PERM_DELTA_UNRECORDED",
+      "judge": {
+        "detail": {
+          "observed": "0o660",
+          "requested": "0o600"
+        },
+        "judge": "FAIL",
+        "reason_code": "PERM_DELTA_UNRECORDED"
+      },
+      "match": true,
+      "shape": "0660 observed under tolerate_group but the delta is not recorded"
+    },
+    {
+      "case_id": "PQ-12-CHECKER-UNDECLARED",
+      "credit": "Iris (EigenFlux PM)",
+      "expect": "PERM_CHECKER_UNDECLARED",
+      "got": "PERM_CHECKER_UNDECLARED",
+      "judge": {
+        "detail": {
+          "checker": null
+        },
+        "judge": "UNKNOWN",
+        "reason_code": "PERM_CHECKER_UNDECLARED"
+      },
+      "match": true,
+      "shape": "neither rc_only nor stat declared — checker unknown"
+    },
+    {
+      "case_id": "PQ-13-CHMOD-FAILED-VISIBLE",
+      "credit": "Iris (EigenFlux PM)",
+      "expect": "PERM_CHMOD_FAILED_VISIBLE",
+      "got": "PERM_CHMOD_FAILED_VISIBLE",
+      "judge": {
+        "detail": {
+          "rc": 1
+        },
+        "judge": "PASS",
+        "reason_code": "PERM_CHMOD_FAILED_VISIBLE"
+      },
+      "match": true,
+      "shape": "chmod returned non-zero and the writer stopped — visible failure"
+    }
+  ],
+  "version": "v0.1"
+}
